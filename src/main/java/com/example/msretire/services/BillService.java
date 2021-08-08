@@ -39,6 +39,17 @@ public class BillService {
                 .bodyToMono(Bill.class);
     }
 
+    public Mono<Bill> updateBill(Bill bill){
+        return webClientBuilder.build().get().uri("/update")
+                .accept(APPLICATION_JSON)
+                .retrieve()
+                .onStatus(HttpStatus::isError, response -> {
+                    logTraceResponse(log, response);
+                    return Mono.error(new RuntimeException("THE BILL UPDATE FAILED"));
+                })
+                .bodyToMono(Bill.class);
+    }
+
     public static void logTraceResponse(Logger log, ClientResponse response) {
         if (log.isTraceEnabled()) {
             log.trace("Response status: {}", response.statusCode());

@@ -1,5 +1,6 @@
 package com.example.msretire.handler;
 
+import com.example.msretire.models.entities.Bill;
 import com.example.msretire.models.entities.Retire;
 import com.example.msretire.services.BillService;
 import com.example.msretire.services.IRetireService;
@@ -52,6 +53,26 @@ public class RetireHandler {
                         .contentType(MediaType.APPLICATION_JSON)
                         .bodyValue(p))
                 .switchIfEmpty(Mono.error(new RuntimeException("THE ACCOUNT NUMBER DOES NOT EXIST")));
+    }
+
+    public Mono<ServerResponse> createRetire(ServerRequest request){
+        Retire retire = request.bodyToMono(Retire.class).block();
+        Mono<Bill> bill = billService.findByAccountNumber(retire.getBill().getAccountNumber());
+        return bill.flatMap(acc -> {
+            if (retire.getAmount() > acc.getBalance()){
+                return ServerResponse.ok()
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .bodyValue(new RuntimeException("El monto a retirar excede al saldo disponible"));
+            }
+            acc.setBalance(acc.getBalance() - retire.getAmount());
+            retire.setBill(acc);
+            // UPDATE ACCOUNT BALANCE
+            //billService.updateBill(acc);
+            return retireService.create(retire).flatMap(r -> ServerResponse.ok()
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .bodyValue(r))
+                    .switchIfEmpty(Mono.error(new RuntimeException("Retire no content")));
+        });
     }
 
     public Mono<ServerResponse> save(ServerRequest request){
