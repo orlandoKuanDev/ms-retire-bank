@@ -2,8 +2,10 @@ package com.example.msretire.handler;
 
 import com.example.msretire.models.entities.Bill;
 import com.example.msretire.models.entities.Retire;
+import com.example.msretire.models.entities.Transaction;
 import com.example.msretire.services.BillService;
 import com.example.msretire.services.IRetireService;
+import com.example.msretire.services.TransactionService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -15,6 +17,7 @@ import org.springframework.web.reactive.function.server.ServerResponse;
 import reactor.core.publisher.Mono;
 
 import java.net.URI;
+import java.time.LocalDateTime;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
@@ -26,11 +29,12 @@ import static org.springframework.http.MediaType.APPLICATION_JSON;
 public class RetireHandler {
     private final IRetireService retireService;
     private final BillService billService;
-
+    private final TransactionService transactionService;
     @Autowired
-    public RetireHandler(IRetireService retireService, BillService billService) {
+    public RetireHandler(IRetireService retireService, BillService billService, TransactionService transactionService) {
         this.retireService = retireService;
         this.billService = billService;
+        this.transactionService = transactionService;
     }
 
     public Mono<ServerResponse> findAll(ServerRequest request){
@@ -63,11 +67,24 @@ public class RetireHandler {
                 Mono<Bill> billUpdated = billService.updateBill(billUpdate);
                 return billUpdated;
                 })
-                .flatMap(retireUpdate -> ServerResponse.created(URI.create("/bill/".concat(retireUpdate.getAccountNumber())))
+                .flatMap(billUpdate -> ServerResponse.created(URI.create("/bill/".concat(billUpdate.getAccountNumber())))
                         .contentType(APPLICATION_JSON)
-                        .bodyValue(retireUpdate))
+                        .bodyValue(billUpdate))
                 .onErrorResume(e -> Mono.error(new RuntimeException("Error update bill")));
     }
+
+    public Mono<ServerResponse> createTransaction(ServerRequest request){
+        Mono<Transaction> transaction = request.bodyToMono(Transaction.class);
+        return transaction.flatMap(transactionCreate -> {
+            Mono<Transaction> transactionCreated = transactionService.createTransaction(transactionCreate);
+            log.info("TRANSACTION_RETIRE {}", transactionCreated);
+            return transactionCreated;
+        }).flatMap(transactionResponse -> ServerResponse.created(URI.create("/transaction/".concat(transactionResponse.getBill().getAccountNumber())))
+                        .contentType(APPLICATION_JSON)
+                        .bodyValue(transactionResponse))
+                .onErrorResume(e -> Mono.error(new RuntimeException("Error create transaction")));
+    }
+
     public Mono<ServerResponse> createRetire2(ServerRequest request){
         Mono<Retire> retire = request.bodyToMono(Retire.class);
         return retire.flatMap(retireRequest ->  billService.findByAccountNumber(retireRequest.getBill().getAccountNumber())
@@ -88,9 +105,16 @@ public class RetireHandler {
                             billR.setBalance(billR.getBalance() - retireRequest.getAmount());
                             return billService.updateBill(billR);
                         })
-                        .flatMap(currentBill -> {
-                            //currentBill.setBalance(currentBill.getBalance() - retireRequest.getAmount());
-                            retireRequest.setBill(currentBill);
+                        .flatMap(bilTransaction -> {
+                            Transaction transaction = new Transaction();
+                            transaction.setTransactionType("RETIRE");
+                            transaction.setTransactionAmount(retireRequest.getAmount());
+                            transaction.setBill(bilTransaction);
+                            transaction.setDescription("RETIRE FROM THE CASHIER");
+                            return transactionService.createTransaction(transaction);
+                        })
+                        .flatMap(currentTransaction -> {
+                            retireRequest.setBill(currentTransaction.getBill());
                             return retireService.create(retireRequest);
                         })).flatMap(retireUpdate -> ServerResponse.created(URI.create("/retire/".concat(retireUpdate.getId())))
                         .contentType(APPLICATION_JSON)

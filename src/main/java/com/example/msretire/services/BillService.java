@@ -32,7 +32,11 @@ public class BillService {
     }
 
     public Mono<Bill> findByAccountNumber(String accountNumber) {
-        return webClientBuilder.build().get().uri("/acc/{accountNumber}", Collections.singletonMap("accountNumber", accountNumber))
+        return webClientBuilder
+                .baseUrl("http://SERVICE-BILL/bill")
+                .build()
+                .get()
+                .uri("/acc/{accountNumber}", Collections.singletonMap("accountNumber", accountNumber))
                 .accept(APPLICATION_JSON)
                 .retrieve()
                 .onStatus(HttpStatus::isError, response -> {
@@ -47,7 +51,10 @@ public class BillService {
     public Mono<Bill> updateBill(Bill bill){
         //WebClient webClient = WebClient.create("http://SERVICE-BILL/bill");
         logger.info("BILL_WEBCLIENT_UPDATE {}", bill);
-        return webClientBuilder.build().post()
+        return webClientBuilder
+                .baseUrl("http://SERVICE-BILL/bill")
+                .build()
+                .post()
                 .uri("/update")
                 .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
                 .body(Mono.just(bill), Bill.class)
@@ -56,8 +63,7 @@ public class BillService {
                     logTraceResponse(logger, response);
                     return Mono.error(new RuntimeException("THE BILL UPDATE FAILED"));
                 })
-                .bodyToMono(Bill.class)
-                ;
+                .bodyToMono(Bill.class);
     }
 
     public static void logTraceResponse(Logger log, ClientResponse response) {

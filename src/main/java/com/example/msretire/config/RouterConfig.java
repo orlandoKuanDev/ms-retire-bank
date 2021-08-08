@@ -18,6 +18,7 @@ public class RouterConfig {
                 .andRoute(GET("/retire/acc/{accountNumber}"), handler::findByAccountNumber)
                 .andRoute(POST("/retire"), handler::save)
                 .andRoute(POST("/retire/create"), handler::createRetire)
-                .andRoute(POST("/retire/update/bill"), handler::updateBill);
+                .andRoute(POST("/retire/update/bill"), handler::updateBill)
+                .andRoute(POST("/retire/create/transaction"), handler::createTransaction);
     }
 }

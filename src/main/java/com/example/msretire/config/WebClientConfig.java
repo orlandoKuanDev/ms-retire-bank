@@ -10,6 +10,6 @@ public class WebClientConfig {
     @Bean
     @LoadBalanced
     public WebClient.Builder registrarWebClient() {
-        return WebClient.builder().baseUrl("http://SERVICE-BILL/bill");
+        return WebClient.builder();
     }
 }
