@@ -19,6 +19,8 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.springframework.http.MediaType.APPLICATION_JSON;
+
 @Component
 @Slf4j(topic = "RETIRE_HANDLER")
 public class RetireHandler {
@@ -55,30 +57,51 @@ public class RetireHandler {
                 .switchIfEmpty(Mono.error(new RuntimeException("THE ACCOUNT NUMBER DOES NOT EXIST")));
     }
 
+    public Mono<ServerResponse> updateBill(ServerRequest request){
+        Mono<Bill> bill = request.bodyToMono(Bill.class);
+        return bill.flatMap(billUpdate -> {
+                Mono<Bill> billUpdated = billService.updateBill(billUpdate);
+                return billUpdated;
+                })
+                .flatMap(retireUpdate -> ServerResponse.created(URI.create("/bill/".concat(retireUpdate.getAccountNumber())))
+                        .contentType(APPLICATION_JSON)
+                        .bodyValue(retireUpdate))
+                .onErrorResume(e -> Mono.error(new RuntimeException("Error update bill")));
+    }
+    public Mono<ServerResponse> createRetire2(ServerRequest request){
+        Mono<Retire> retire = request.bodyToMono(Retire.class);
+        return retire.flatMap(retireRequest ->  billService.findByAccountNumber(retireRequest.getBill().getAccountNumber())
+                .flatMap(currentBill -> {
+                    currentBill.setBalance(currentBill.getBalance() - retireRequest.getAmount());
+                    retireRequest.setBill(currentBill);
+                    return retireService.create(retireRequest);
+                })).flatMap(retireUpdate -> ServerResponse.created(URI.create("/retire/".concat(retireUpdate.getId())))
+                        .contentType(APPLICATION_JSON)
+                        .bodyValue(retireUpdate))
+                .onErrorResume(e -> Mono.error(new RuntimeException("Error update retire")));
+    }
+
     public Mono<ServerResponse> createRetire(ServerRequest request){
-        Retire retire = request.bodyToMono(Retire.class).block();
-        Mono<Bill> bill = billService.findByAccountNumber(retire.getBill().getAccountNumber());
-        return bill.flatMap(acc -> {
-            if (retire.getAmount() > acc.getBalance()){
-                return ServerResponse.ok()
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .bodyValue(new RuntimeException("El monto a retirar excede al saldo disponible"));
-            }
-            acc.setBalance(acc.getBalance() - retire.getAmount());
-            retire.setBill(acc);
-            // UPDATE ACCOUNT BALANCE
-            //billService.updateBill(acc);
-            return retireService.create(retire).flatMap(r -> ServerResponse.ok()
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .bodyValue(r))
-                    .switchIfEmpty(Mono.error(new RuntimeException("Retire no content")));
-        });
+        Mono<Retire> retire = request.bodyToMono(Retire.class);
+        return retire.flatMap(retireRequest ->  billService.findByAccountNumber(retireRequest.getBill().getAccountNumber())
+                        .flatMap(billR -> {
+                            billR.setBalance(billR.getBalance() - retireRequest.getAmount());
+                            return billService.updateBill(billR);
+                        })
+                        .flatMap(currentBill -> {
+                            //currentBill.setBalance(currentBill.getBalance() - retireRequest.getAmount());
+                            retireRequest.setBill(currentBill);
+                            return retireService.create(retireRequest);
+                        })).flatMap(retireUpdate -> ServerResponse.created(URI.create("/retire/".concat(retireUpdate.getId())))
+                        .contentType(APPLICATION_JSON)
+                        .bodyValue(retireUpdate))
+                .onErrorResume(e -> Mono.error(new RuntimeException("Error update retire")));
     }
 
     public Mono<ServerResponse> save(ServerRequest request){
         Mono<Retire> product = request.bodyToMono(Retire.class);
         return product.flatMap(retireService::create)
-                .flatMap(p -> ServerResponse.created(URI.create("/api/client/".concat(p.getId())))
+                .flatMap(p -> ServerResponse.created(URI.create("/retire/".concat(p.getId())))
                         .contentType(MediaType.APPLICATION_JSON)
                         .bodyValue(p))
                 .onErrorResume(error -> {
