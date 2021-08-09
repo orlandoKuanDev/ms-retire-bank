@@ -85,24 +85,14 @@ public class RetireHandler {
                 .onErrorResume(e -> Mono.error(new RuntimeException("Error create transaction")));
     }
 
-    public Mono<ServerResponse> createRetire2(ServerRequest request){
-        Mono<Retire> retire = request.bodyToMono(Retire.class);
-        return retire.flatMap(retireRequest ->  billService.findByAccountNumber(retireRequest.getBill().getAccountNumber())
-                .flatMap(currentBill -> {
-                    currentBill.setBalance(currentBill.getBalance() - retireRequest.getAmount());
-                    retireRequest.setBill(currentBill);
-                    return retireService.create(retireRequest);
-                })).flatMap(retireUpdate -> ServerResponse.created(URI.create("/retire/".concat(retireUpdate.getId())))
-                        .contentType(APPLICATION_JSON)
-                        .bodyValue(retireUpdate))
-                .onErrorResume(e -> Mono.error(new RuntimeException("Error update retire")));
-    }
-
     public Mono<ServerResponse> createRetire(ServerRequest request){
         Mono<Retire> retire = request.bodyToMono(Retire.class);
         return retire.flatMap(retireRequest ->  billService.findByAccountNumber(retireRequest.getBill().getAccountNumber())
                         .flatMap(billR -> {
                             billR.setBalance(billR.getBalance() - retireRequest.getAmount());
+                            /*if (retireRequest.getAmount() > billR.getBalance()){
+                                return Mono.error(new RuntimeException("The retire amount exceeds the available balance"));
+                            }*/
                             return billService.updateBill(billR);
                         })
                         .flatMap(bilTransaction -> {
