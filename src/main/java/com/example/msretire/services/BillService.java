@@ -49,7 +49,6 @@ public class BillService {
     }
 
     public Mono<Bill> updateBill(Bill bill){
-        //WebClient webClient = WebClient.create("http://SERVICE-BILL/bill");
         logger.info("BILL_WEBCLIENT_UPDATE {}", bill);
         return webClientBuilder
                 .baseUrl("http://SERVICE-BILL/bill")

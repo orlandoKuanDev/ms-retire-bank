@@ -12,14 +12,10 @@ import org.springframework.data.mongodb.core.mapping.Field;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
-@JsonIgnoreProperties(ignoreUnknown = true)
-//@JsonInclude(JsonInclude.Include.NON_NULL)
-//@Document(collection = "transaction")
+//@JsonIgnoreProperties(ignoreUnknown = true)
+@JsonInclude(JsonInclude.Include.NON_NULL)
 @Data
-//@Builder
 public class Transaction {
-    /*@Id
-    private String id;*/
 
     @Field(name = "transactionType")
     private String transactionType;
@@ -29,6 +25,9 @@ public class Transaction {
 
     @Field(name = "account")
     private Bill bill;
+
+    @Field(name = "commission")
+    private Double commission;
 
     @Field(name = "description")
     private String description = "";

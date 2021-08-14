@@ -90,11 +90,11 @@ public class RetireHandler {
         return retire.flatMap(retireRequest ->  billService.findByAccountNumber(retireRequest.getBill().getAccountNumber())
                         .flatMap(billR -> {
                             billR.setBalance(billR.getBalance() - retireRequest.getAmount());
-                            /*if (retireRequest.getAmount() > billR.getBalance()){
-                                return Mono.error(new RuntimeException("The retire amount exceeds the available balance"));
-                            }*/
-                            return billService.updateBill(billR);
-                        })
+                            if (retireRequest.getAmount() > billR.getBalance()){
+                                return Mono.empty();
+                            }
+                            return Mono.just(billR);
+                        }).switchIfEmpty(Mono.error(new RuntimeException("The retire amount exceeds the available balance")))
                         .flatMap(bilTransaction -> {
                             Transaction transaction = new Transaction();
                             transaction.setTransactionType("RETIRE");
@@ -104,6 +104,7 @@ public class RetireHandler {
                             return transactionService.createTransaction(transaction);
                         })
                         .flatMap(currentTransaction -> {
+                            log.info("CURRENT_TRANSACTION: {}", currentTransaction);
                             retireRequest.setBill(currentTransaction.getBill());
                             return retireService.create(retireRequest);
                         })).flatMap(retireUpdate -> ServerResponse.created(URI.create("/retire/".concat(retireUpdate.getId())))
