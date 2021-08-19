@@ -110,7 +110,7 @@ public class RetireHandler {
                         })).flatMap(retireUpdate -> ServerResponse.created(URI.create("/retire/".concat(retireUpdate.getId())))
                         .contentType(APPLICATION_JSON)
                         .bodyValue(retireUpdate))
-                .onErrorResume(e -> Mono.error(new RuntimeException("Error update retire")));
+                .onErrorResume(e -> Mono.error(new RuntimeException(e.getMessage())));
     }
 
     public Mono<ServerResponse> save(ServerRequest request){
