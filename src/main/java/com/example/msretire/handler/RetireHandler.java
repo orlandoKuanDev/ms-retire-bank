@@ -100,7 +100,7 @@ public class RetireHandler {
                             transaction.setTransactionType("RETIRE");
                             transaction.setTransactionAmount(retireRequest.getAmount());
                             transaction.setBill(bilTransaction);
-                            transaction.setDescription("RETIRE FROM THE CASHIER");
+                            transaction.setDescription(retireRequest.getDescription());
                             return transactionService.createTransaction(transaction);
                         })
                         .flatMap(currentTransaction -> {
