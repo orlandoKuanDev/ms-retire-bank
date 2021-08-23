@@ -85,6 +85,35 @@ public class RetireHandler {
                 .onErrorResume(e -> Mono.error(new RuntimeException("Error create transaction")));
     }
 
+    public Mono<ServerResponse> createRetireV2(ServerRequest request){
+        Mono<Retire> retireRequest = request.bodyToMono(Retire.class);
+        Mono<Bill> billMono = retireRequest.flatMap(retire -> billService.findByAccountNumber(retire.getBill().getAccountNumber()));
+        Mono<Transaction> transactionMono = Mono.just(new Transaction());
+        return retireRequest
+                .zipWhen(retire -> billService.findByAccountNumber(retire.getBill().getAccountNumber()))
+                .zipWhen(result -> {
+                if (result.getT1().getAmount() > result.getT2().getBalance()){
+                    return Mono.error(new RuntimeException("The retire amount exceeds the available balance"));
+                }
+                Transaction transaction = new Transaction();
+                result.getT2().setBalance(result.getT2().getBalance() - result.getT1().getAmount());
+                transaction.setTransactionType("RETIRE");
+                transaction.setTransactionAmount(result.getT1().getAmount());
+                transaction.setBill(result.getT2());
+                transaction.setDescription(result.getT1().getDescription());
+                return transactionService.createTransaction(transaction);
+        })
+                .flatMap(response -> {
+                    response.getT1().getT1().setBill(response.getT2().getBill());
+                    return retireService.create(response.getT1().getT1());
+                })
+                .flatMap(retireCreate ->
+                        ServerResponse.created(URI.create("/retire/".concat(retireCreate.getId())))
+                .contentType(APPLICATION_JSON)
+                .bodyValue(retireCreate))
+                .onErrorResume(e -> Mono.error(new RuntimeException(e.getMessage())));
+    }
+
     public Mono<ServerResponse> createRetire(ServerRequest request){
         Mono<Retire> retire = request.bodyToMono(Retire.class);
         return retire.flatMap(retireRequest ->  billService.findByAccountNumber(retireRequest.getBill().getAccountNumber())
