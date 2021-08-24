@@ -110,20 +110,25 @@ public class RetireHandler {
                     bill.setBalance(bill.getBalance() - result.getT1().getT1().getAmount());
                     transaction.setBill(bill);
                     }else {
-                        result.getT2().getPrincipal().getBill().setBalance(result.getT2().getPrincipal().getBill().getBalance() - result.getT1().getT1().getAmount());
+                        result.getT2().getPrincipal().getBill().setBalance(
+                                result.getT2().getPrincipal().getBill().getBalance()
+                                        - result.getT1().getT1().getAmount());
                         transaction.setBill(result.getT2().getPrincipal().getBill());
                     }
                     return transactionService.createTransaction(transaction);
                 })
                 .zipWhen(updateDebit -> {
                     //update list
-                    List<Acquisition> acquisitions = updateDebit.getT1().getT2().getAssociations().stream().peek(rx -> {
+                    List<Acquisition> acquisitions = updateDebit.getT1().getT2().getAssociations().stream()
+                            .peek(rx -> {
                         if (Objects.equals(rx.getBill().getAccountNumber(), updateDebit.getT2().getBill().getAccountNumber())){
                             rx.setBill(updateDebit.getT2().getBill());
                         }
                     }).collect(Collectors.toList());
                     //validate is principal
-                    Acquisition currentAcq = acquisitions.stream().filter(acquisition -> Objects.equals(acquisition.getBill().getAccountNumber(), updateDebit.getT2().getBill().getAccountNumber())).findFirst().orElse(null);
+                    Acquisition currentAcq = acquisitions.stream()
+                            .filter(acquisition -> Objects.equals(acquisition.getBill().getAccountNumber(), updateDebit.getT2().getBill().getAccountNumber()))
+                            .findFirst().orElseThrow(() -> new RuntimeException("The account does not exist in this card"));
                     Boolean isPrincipal = updateDebit.getT1().getT2().getPrincipal().getIban().equals(currentAcq.getIban());
                     if (Boolean.TRUE.equals(isPrincipal)){
                         updateDebit.getT1().getT2().getPrincipal().setBill(updateDebit.getT2().getBill());
