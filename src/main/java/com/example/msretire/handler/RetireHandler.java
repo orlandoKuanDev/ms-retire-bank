@@ -300,10 +300,8 @@ public class RetireHandler {
                 });
     }
 
-    public Mono<ServerResponse> createRetireWithCard(ServerRequest request){
-        Mono<CreateRetireWithCardDTO> createDepositDTO = request.bodyToMono(CreateRetireWithCardDTO.class);
-
-        return createDepositDTO
+    public Mono<Retire> createRetire(Mono<CreateRetireWithCardDTO> retireRequest){
+        return retireRequest
                 .zipWhen(depositRequest -> {
                     return debitService.findByAccountNumber(depositRequest.getAccountNumber())
                             .switchIfEmpty(Mono.defer(() -> {
@@ -316,7 +314,14 @@ public class RetireHandler {
                     }
                     return Mono.just(Tuples.of(data.getT1(), data.getT2()))
                             .as(this::createTransactionUpdateDebitWithCard);
-                })
+                });
+    }
+
+    public Mono<ServerResponse> createRetireWithCard(ServerRequest request){
+        Mono<CreateRetireWithCardDTO> createDepositDTO = request.bodyToMono(CreateRetireWithCardDTO.class);
+
+        return createDepositDTO
+                .as(this::createRetire)
                 .flatMap(depositCreate ->
                         ServerResponse.ok()
                                 .contentType(APPLICATION_JSON)

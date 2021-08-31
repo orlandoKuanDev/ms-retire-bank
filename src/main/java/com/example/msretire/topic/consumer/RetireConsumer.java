@@ -13,23 +13,22 @@ import reactor.core.publisher.Mono;
 
 @Slf4j
 @Component
-public class retireConsumer {
+public class RetireConsumer {
     private static final String SERVICE_CREATE_RETIRE_TOPIC = "service-create-retire-topic";
-    private final static String GROUP_ID = "retire-group";
+    private static final String GROUP_ID = "retire-group";
     private final RetireHandler retireHandler;
     private final ObjectMapper objectMapper;
 
     @Autowired
-    public retireConsumer(RetireHandler retireHandler, ObjectMapper objectMapper) {
+    public RetireConsumer(RetireHandler retireHandler, ObjectMapper objectMapper) {
         this.retireHandler = retireHandler;
         this.objectMapper = objectMapper;
     }
 
-    @KafkaListener( topics = SERVICE_CREATE_RETIRE_TOPIC, groupId = GROUP_ID)
-    public Disposable retrieveSavedAcquisition(String data) throws Exception {
+    @KafkaListener(topics = SERVICE_CREATE_RETIRE_TOPIC, groupId = GROUP_ID)
+    public Disposable retrieveSavedRetire(String data) throws Exception {
         log.info("data from kafka listener (acquisition) =>"+data);
         CreateRetireWithCardDTO retireWithCardDTO= objectMapper.readValue(data, CreateRetireWithCardDTO.class );
-
         return Mono.just(retireWithCardDTO)
                 .as(retireHandler::createRetire)
                 .log()
