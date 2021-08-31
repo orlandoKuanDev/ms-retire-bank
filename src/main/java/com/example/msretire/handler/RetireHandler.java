@@ -15,6 +15,8 @@ import org.springframework.web.reactive.function.client.WebClientResponseExcepti
 import org.springframework.web.reactive.function.server.ServerRequest;
 import org.springframework.web.reactive.function.server.ServerResponse;
 import reactor.core.publisher.Mono;
+import reactor.util.function.Tuple2;
+import reactor.util.function.Tuples;
 
 import java.net.URI;
 import java.util.*;
@@ -222,6 +224,105 @@ public class RetireHandler {
                     }
                     return Mono.error(errorResponse);
                 });
+    }
+
+    private Mono<Retire> createTransactionCardLess(Mono<CreateRetireWithCardDTO> tuple){
+        return tuple
+                .zipWhen(depositRequest ->  {
+                    log.info("ACCOUNT, {}", depositRequest.getAccountNumber());
+                    return billService.findByAccountNumber(depositRequest.getAccountNumber());
+                })
+                .zipWhen(result -> {
+                    Transaction transaction = new Transaction();
+                    transaction.setTransactionType("DEPOSIT");
+                    transaction.setTransactionAmount(result.getT1().getAmount());
+                    transaction.setDescription(result.getT1().getDescription());
+                    Bill bill = result.getT2();
+                    bill.setBalance(bill.getBalance() - result.getT1().getAmount());
+                    transaction.setBill(bill);
+                    return transactionService.createTransaction(transaction);
+                })
+                .flatMap(response -> {
+                    Retire retire = new Retire();
+                    retire.setAmount(response.getT1().getT1().getAmount());
+                    retire.setDescription(response.getT1().getT1().getDescription());
+                    retire.setBill(response.getT2().getBill());
+                    return retireService.create(retire);
+                });
+    }
+
+    private Mono<Retire> createTransactionUpdateDebitWithCard(Mono<Tuple2<CreateRetireWithCardDTO, Debit>> tuple) {
+        return tuple
+                .zipWhen(data -> {
+                    data.getT1().setCardNumber(data.getT2().getCardNumber());
+                    return debitService.findByCardNumber(data.getT1().getCardNumber());
+                })
+                .zipWhen(result -> {
+                    Transaction transaction = new Transaction();
+                    transaction.setTransactionType("DEPOSIT");
+                    transaction.setTransactionAmount(result.getT1().getT1().getAmount());
+                    transaction.setDescription(result.getT1().getT1().getDescription());
+                    List<Acquisition> acquisitions = result.getT2().getAssociations();
+                    Acquisition acquisition = acquisitions.stream()
+                            .filter(acq-> Objects.equals(acq.getBill().getAccountNumber(), result.getT1().getT1().getAccountNumber()))
+                            .findFirst()
+                            .orElseThrow(() -> new RuntimeException("The retire amount exceeds the available balance in yours accounts"));
+                    Bill bill = acquisition.getBill();
+                    bill.setBalance(bill.getBalance() - result.getT1().getT1().getAmount());
+                    transaction.setBill(bill);
+                    return transactionService.createTransaction(transaction);
+                }).zipWhen(result -> {
+                    List<Acquisition> acquisitions = result.getT1().getT2().getAssociations().stream()
+                            .peek(rx -> {
+                                if (Objects.equals(rx.getBill().getAccountNumber(), result.getT2().getBill().getAccountNumber())){
+                                    rx.setBill(result.getT2().getBill());
+                                }
+                            }).collect(Collectors.toList());
+                    Acquisition currentAcq = acquisitions.stream()
+                            .filter(acquisition -> Objects.equals(acquisition.getBill().getAccountNumber(), result.getT2().getBill().getAccountNumber()))
+                            .findFirst().orElseThrow(() -> new RuntimeException("The account does not exist in this card"));
+                    Boolean isPrincipal = result.getT1().getT2().getPrincipal().getIban().equals(currentAcq.getIban());
+                    if (Boolean.TRUE.equals(isPrincipal)){
+                        result.getT1().getT2().getPrincipal().setBill(result.getT2().getBill());
+                    }
+                    Debit debit = new Debit();
+                    debit.setAssociations(acquisitions);
+                    debit.setPrincipal(result.getT1().getT2().getPrincipal());
+                    debit.setCardNumber(result.getT1().getT2().getCardNumber());
+                    return debitService.updateDebit(debit);
+                }).flatMap(response -> {
+                    CreateRetireWithCardDTO retireWithCardDTO = response.getT1().getT1().getT1().getT1();
+                    Retire deposit = new Retire();
+                    deposit.setAmount(retireWithCardDTO.getAmount());
+                    deposit.setDescription(retireWithCardDTO.getDescription());
+                    deposit.setBill(response.getT1().getT2().getBill());
+                    return retireService.create(deposit);
+                });
+    }
+
+    public Mono<ServerResponse> createRetireWithCard(ServerRequest request){
+        Mono<CreateRetireWithCardDTO> createDepositDTO = request.bodyToMono(CreateRetireWithCardDTO.class);
+
+        return createDepositDTO
+                .zipWhen(depositRequest -> {
+                    return debitService.findByAccountNumber(depositRequest.getAccountNumber())
+                            .switchIfEmpty(Mono.defer(() -> {
+                                return Mono.just(new Debit());
+                            }));
+                })
+                .flatMap(data -> {
+                    if(data.getT2().getCardNumber() == null){
+                        return Mono.just(data.getT1()).as(this::createTransactionCardLess);
+                    }
+                    return Mono.just(Tuples.of(data.getT1(), data.getT2()))
+                            .as(this::createTransactionUpdateDebitWithCard);
+                })
+                .flatMap(depositCreate ->
+                        ServerResponse.ok()
+                                .contentType(APPLICATION_JSON)
+                                .bodyValue(depositCreate))
+                .log()
+                .onErrorResume(e -> Mono.error(new RuntimeException(e.getMessage())));
     }
 
     private Mono<ServerResponse> errorHandler(Mono<ServerResponse> response){

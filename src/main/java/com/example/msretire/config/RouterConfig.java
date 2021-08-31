@@ -20,7 +20,7 @@ public class RouterConfig {
                 .andRoute(POST("/retire"), handler::save)
                 .andRoute(POST("/retire/create"), handler::createRetire)
                 .andRoute(POST("/retire/createV2"), handler::createRetireV2)
-                .andRoute(POST("/retire/card/create"), handler::createRetireWithCardNumber)
+                .andRoute(POST("/retire/card/create"), handler::createRetireWithCard)
                 .andRoute(POST("/retire/update/bill"), handler::updateBill)
                 .andRoute(POST("/retire/create/transaction"), handler::createTransaction);
     }

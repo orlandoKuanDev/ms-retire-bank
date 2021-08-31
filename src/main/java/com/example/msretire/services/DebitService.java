@@ -47,6 +47,23 @@ public class DebitService {
                 .bodyToMono(Debit.class);
     }
 
+    public Mono<Debit> findByAccountNumber(String accountNumber) {
+        return webClientBuilder
+                .baseUrl("http://SERVICE-DEBIT/debit")
+                .build()
+                .get()
+                .uri("/account/{accountNumber}", Collections.singletonMap("accountNumber", accountNumber))
+                .accept(APPLICATION_JSON)
+                .retrieve()
+                .onStatus(HttpStatus::isError, response -> {
+                    logTraceResponse(logger, response);
+                    return Mono.error(new ArgumentWebClientNotValid(
+                            String.format("THE ACCOUNT NUMBER DONT EXIST IN MICRO SERVICE DEBIT -> %s", accountNumber)
+                    ));
+                })
+                .bodyToMono(Debit.class);
+    }
+
     public Mono<Debit> updateDebit(Debit debit){
         return webClientBuilder
                 .baseUrl("http://SERVICE-DEBIT/debit")

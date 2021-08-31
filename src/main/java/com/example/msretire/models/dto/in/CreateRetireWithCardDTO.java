@@ -9,4 +9,5 @@ public class CreateRetireWithCardDTO {
     private String cardNumber;
     private Double amount;
     private String description;
+    private String accountNumber;
 }
