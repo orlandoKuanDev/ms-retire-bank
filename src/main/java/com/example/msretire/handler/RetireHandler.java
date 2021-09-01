@@ -234,7 +234,7 @@ public class RetireHandler {
                 })
                 .zipWhen(result -> {
                     Transaction transaction = new Transaction();
-                    transaction.setTransactionType("DEPOSIT");
+                    transaction.setTransactionType("RETIRE");
                     transaction.setTransactionAmount(result.getT1().getAmount());
                     transaction.setDescription(result.getT1().getDescription());
                     Bill bill = result.getT2();
@@ -259,7 +259,7 @@ public class RetireHandler {
                 })
                 .zipWhen(result -> {
                     Transaction transaction = new Transaction();
-                    transaction.setTransactionType("DEPOSIT");
+                    transaction.setTransactionType("RETIRE");
                     transaction.setTransactionAmount(result.getT1().getT1().getAmount());
                     transaction.setDescription(result.getT1().getT1().getDescription());
                     List<Acquisition> acquisitions = result.getT2().getAssociations();
